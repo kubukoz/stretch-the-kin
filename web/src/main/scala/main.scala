@@ -160,6 +160,7 @@ object CountdownComponent {
           s"${e.toSeconds}:${e.toMillis % 1000}"
         },
         button(
+          disabled <-- finished,
           paused.map {
             case true  => "Resume"
             case false => "Pause"
