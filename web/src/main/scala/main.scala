@@ -28,21 +28,25 @@ extension [A](sigref: SignallingRef[IO, A]) {
 
 object App extends IOWebApp {
 
-  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(true).toResource.flatMap {
-    countdownActive =>
-      div {
-        countdownActive.map {
-          case true =>
-            CountdownComponent
-              .render(
-                countdownFrom = 1.seconds,
-                refreshRate = 1.second / 60,
-                onFinished = IO.println("finished") *> countdownActive.set(false),
-              )
-
-          case false => div("done")
+  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(0).toResource.flatMap {
+    countdownActiveI =>
+      val countdowns =
+        List.fill(10) {
+          CountdownComponent
+            .render(
+              countdownFrom = 1.seconds,
+              refreshRate = 1.second / 60,
+              onFinished = IO.println("finished") *> countdownActiveI.update(i => (i + 1) % 10),
+            )
         }
-      }
+
+      div(
+        "Counter ",
+        countdownActiveI.map(_.show),
+        ":",
+        countdowns.liftN(countdownActiveI.sig),
+      )
+
   }
 
   // enum Step {
