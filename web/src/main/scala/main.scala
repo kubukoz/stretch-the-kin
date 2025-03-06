@@ -1,84 +1,109 @@
 import calico.IOWebApp
 import calico.html.io.*
 import calico.html.io.given
+import cats.derived.*
 import cats.effect.IO
 import cats.effect.kernel.Resource
+import cats.kernel.Eq
 import cats.syntax.all.*
 import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
 import fs2.dom.HtmlElement
 import language.experimental.namedTuples
 import monocle.Focus
+import monocle.syntax.all.*
 
 import scala.concurrent.duration.*
 
+extension [A](sigref: SignallingRef[IO, A]) {
+
+  inline def lens[B](inline f: Focus.KeywordContext ?=> A => B): SignallingRef[IO, B] =
+    SignallingRef.lens(sigref)(
+      _.focus(f).asInstanceOf[monocle.AppliedLens[A, B]].get,
+      _.focus(f).asInstanceOf[monocle.AppliedLens[A, B]].replace,
+    )
+
+  inline def sig: Signal[IO, A] = sigref
+}
+
 object App extends IOWebApp {
 
-  import monocle.syntax.all.*
+  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(true).toResource.flatMap {
+    countdownActive =>
+      div {
+        countdownActive.map {
+          case true =>
+            CountdownComponent
+              .render(
+                countdownFrom = 1.seconds,
+                refreshRate = 1.second / 60,
+                onFinished = IO.println("finished") *> countdownActive.set(false),
+              )
 
-  extension [A](sigref: SignallingRef[IO, A]) {
-
-    inline def lens[B](inline f: Focus.KeywordContext ?=> A => B): SignallingRef[IO, B] =
-      SignallingRef.lens(sigref)(
-        _.focus(f).asInstanceOf[monocle.AppliedLens[A, B]].get,
-        _.focus(f).asInstanceOf[monocle.AppliedLens[A, B]].replace,
-      )
-
-    inline def sig: Signal[IO, A] = sigref
+          case false => div("done")
+        }
+      }
   }
 
-  enum Step {
-    case CARS
-    case PassiveStretch(duration: FiniteDuration)
-    case PAILS(duration: FiniteDuration)
-    case RAILS(duration: FiniteDuration)
-    case Liftoffs(number: Int)
-  }
+  // enum Step {
+  //   case CARS
+  //   case PassiveStretch(duration: FiniteDuration)
+  //   case PAILS(duration: FiniteDuration)
+  //   case RAILS(duration: FiniteDuration)
+  //   case Liftoffs(number: Int)
+  // }
 
-  case class Session(steps: List[Step])
+  // case class Session(steps: List[Step])
 
-  val sesshn = Session(
-    List(
-      Step.CARS,
-      Step.PassiveStretch(FiniteDuration(30, "seconds")),
-      Step.PAILS(FiniteDuration(30, "seconds")),
-      Step.RAILS(FiniteDuration(30, "seconds")),
-      Step.Liftoffs(10),
-    )
-  )
+  // val sesshn = Session(
+  //   List(
+  //     Step.CARS,
+  //     Step.PassiveStretch(FiniteDuration(30, "seconds")),
+  //     Step.PAILS(FiniteDuration(30, "seconds")),
+  //     Step.RAILS(FiniteDuration(30, "seconds")),
+  //     Step.Liftoffs(10),
+  //   )
+  // )
 
-  enum CurrentCounter {
+}
+
+object CountdownComponent {
+
+  enum CurrentCounter derives Eq {
     case Paused
     case Running(since: FiniteDuration, now: FiniteDuration)
-  }
 
-  object CurrentCounter {
-
-    extension (r: Running) {
-      def runningTotal: FiniteDuration = r.now - r.since
-    }
+    def runningTotal: FiniteDuration =
+      this match {
+        case Running(since, now) => now - since
+        case Paused              => 0.seconds
+      }
 
   }
 
   case class State(current: CurrentCounter, stored: FiniteDuration) {
 
-    def total: FiniteDuration =
-      stored + current.match {
-        case CurrentCounter.Paused     => 0.seconds
-        case r: CurrentCounter.Running => r.runningTotal
-      }
+    private val cutoff = 0.seconds
 
-    def paused: Boolean = current == CurrentCounter.Paused
+    def finished: Boolean = total <= cutoff
+    def total: FiniteDuration = (stored - current.runningTotal) max cutoff
+
+    def paused: Boolean = current === CurrentCounter.Paused
 
   }
 
-  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO]
-    .of(State(current = CurrentCounter.Paused, stored = 0.seconds))
+  def render(
+    countdownFrom: FiniteDuration,
+    refreshRate: FiniteDuration,
+    onFinished: IO[Unit],
+  ): Resource[IO, HtmlElement[IO]] = SignallingRef[IO]
+    .of(State(current = CurrentCounter.Paused, stored = countdownFrom))
     .toResource
     .flatMap { state =>
       val total = state.map(_.total)
       val paused = state.map(_.paused)
       val current = state.lens(_.current)
+      val finished = state.map(_.finished)
 
       val switch = IO.realTime.flatMap { now =>
         state.update { s =>
@@ -91,18 +116,17 @@ object App extends IOWebApp {
             case r: CurrentCounter.Running =>
               s.copy(
                 current = CurrentCounter.Paused,
-                stored = s.stored + r.runningTotal,
+                stored = s.total,
               )
           }
         }
       }
 
-      val updateRate = 1.second / 60
-
       val updateState =
         fs2
           .Stream
-          .fixedDelay[IO](updateRate)
+          .fixedDelay[IO](refreshRate)
+          .interruptWhen(finished)
           .foreach { _ =>
             IO.realTime.flatMap { now =>
               current.update {
@@ -111,6 +135,16 @@ object App extends IOWebApp {
               }
             }
           }
+          .compile
+          .drain
+          .background
+          .void
+
+      val notifyFinished =
+        finished
+          .discrete
+          .filter(identity)
+          .foreach(_ => onFinished)
           .compile
           .drain
           .background
@@ -129,6 +163,7 @@ object App extends IOWebApp {
           onClick(switch),
         ),
         updateState,
+        notifyFinished,
       )
     }
 
