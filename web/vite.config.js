@@ -11,5 +11,5 @@ export default defineConfig({
       },
     },
   },
-  base: "/calico-template",
+  base: "/stretch-the-kin",
 });

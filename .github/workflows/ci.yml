@@ -99,7 +99,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     environment:
       name: github-pages
-      url: 'https://TODO'
+      url: 'https://kubukoz.github.io/stretch-the-kin'
     steps:
       - name: Checkout current branch (full)
         uses: actions/checkout@v4
