@@ -5,6 +5,7 @@ import calico.html.io.*
 import calico.html.io.given
 import cats.effect.IO
 import cats.effect.kernel.Resource
+import cats.kernel.Monoid
 import cats.syntax.all.*
 import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
@@ -27,45 +28,119 @@ extension [A](sigref: SignallingRef[IO, A]) {
 
 object App extends IOWebApp {
 
-  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(0).toResource.flatMap {
-    countdownActiveI =>
-      val countdowns =
-        List.fill(10) {
-          CountdownComponent
-            .render(
-              countdownFrom = 1.seconds,
-              refreshRate = 1.second / 60,
-              onFinished = IO.println("finished") *> countdownActiveI.update(i => (i + 1) % 10),
-            )
-        }
+  def render: Resource[IO, HtmlElement[IO]] = div(
+    Step.toInstructions(Session.kneeIrEr45minute).map(p(_))
+  )
 
-      div(
-        "Counter ",
-        countdownActiveI.map(_.show),
-        ":",
-        countdowns.liftN(countdownActiveI.sig),
-      )
+  enum Step {
+    case Empty
+    case Single(action: String, timed: Option[FiniteDuration])
+    case Many(steps: List[Step])
+    case Sets(step: Step, n: Int, between: Step)
+    case WithVariants(step: Step, variants: List[String])
+    case Reps(step: Step, n: Int)
+
+    def reps(n: Int): Step = Reps(this, n)
+    def sets(n: Int, between: Step): Step = Sets(this, n, between)
+
+    // repeats this step for each side (left, right)
+    def leftRight: Step = WithVariants(this, List("Left side", "Right side"))
+
+    // repeats this step for IR/ER
+    def internalExternal: Step = WithVariants(this, List("Internal rotation", "External rotation"))
+
+    def combine(another: Step): Step =
+      (this, another) match {
+        case (Many(a), Many(b)) => Many(a ++ b)
+        case (Many(a), b)       => Many(a :+ b)
+        case (a, Many(b))       => Many(a +: b)
+        case _                  => Many(List(this, another))
+      }
 
   }
 
-  // enum Step {
-  //   case CARS
-  //   case PassiveStretch(duration: FiniteDuration)
-  //   case PAILS(duration: FiniteDuration)
-  //   case RAILS(duration: FiniteDuration)
-  //   case Liftoffs(number: Int)
-  // }
+  object Step {
+    def empty: Step = Empty
+    def steps(steps: Step*): Step = steps.toList.combineAll
+    def step(action: String): Step.Single = Step.Single(action, timed = None)
 
-  // case class Session(steps: List[Step])
+    extension (s: Step.Single) {
+      def timed(d: FiniteDuration): Step = s.copy(timed = d.some)
+    }
 
-  // val sesshn = Session(
-  //   List(
-  //     Step.CARS,
-  //     Step.PassiveStretch(FiniteDuration(30, "seconds")),
-  //     Step.PAILS(FiniteDuration(30, "seconds")),
-  //     Step.RAILS(FiniteDuration(30, "seconds")),
-  //     Step.Liftoffs(10),
-  //   )
-  // )
+    given Monoid[Step] with {
+      def empty: Step = Empty
+      def combine(x: Step, y: Step): Step = x.combine(y)
+    }
+
+    def toInstructions(step: Step): List[String] =
+      step match {
+        case Empty       => Nil
+        case Many(steps) => steps.flatMap(toInstructions)
+        case Sets(step, n, between) =>
+          List.concat(
+            List(s"$n sets of:"),
+            toInstructions(step).map("-" + _),
+            List("Between sets:"),
+            toInstructions(between).map("-" + _),
+          )
+        case WithVariants(step, variants) =>
+          val underlying = toInstructions(step)
+
+          if underlying.lengthIs == 1 then List(
+            s"For each variant: " + variants.mkString(", ") + ": " + underlying.head
+          )
+          else
+            List.concat(
+              List("For each variant: " + variants.mkString(", ")),
+              underlying.map("-" + _),
+            )
+
+        case Reps(step, n) =>
+          step match {
+            case s: Single => List(s"$n reps of: ${toInstructions(s).mkString(", ")}")
+            case _ =>
+              List.concat(
+                List(s"$n reps of:"),
+                toInstructions(step).map("-" + _),
+              )
+          }
+        case Single(action, timed) =>
+          List(
+            action + timed.fold("")(d => s" for ${d.toSeconds} seconds")
+          )
+      }
+
+  }
+
+  object Session {
+
+    import Step.*
+
+    val kneeIrEr45minute = steps(
+      step("Knee CARs").reps(8).leftRight,
+      step("Capsular knee CARs").reps(10).leftRight,
+      steps(
+        step("Get into position: 90-90 for internal rotation on the back"),
+        step("Passive stretch").timed(2.minutes),
+        steps(
+          step("PAILs - begin slowly").timed(20.seconds),
+          step("RAILs - switch instantly").timed(15.seconds),
+          step("Slowly release").timed(10.seconds),
+        ).sets(2, between = step("Passive stretch").timed(45.seconds)),
+        step("Passive stretch").timed(30.seconds),
+        step("Back out 10%").timed(10.seconds),
+        steps(
+          step("Lift up").timed(2.seconds),
+          step("Lift down").timed(2.seconds),
+        ).reps(9),
+        step("Lift up and hold").timed(15.seconds),
+        step("Slowly release").timed(10.seconds),
+      ).leftRight.internalExternal,
+      step("Knee CARs").reps(6).leftRight,
+      step("Capsular knee CARs").reps(10).leftRight,
+    )
+
+  }
 
 }
