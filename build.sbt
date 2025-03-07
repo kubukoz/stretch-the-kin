@@ -1,3 +1,4 @@
+import org.scalajs.linker.interface.ModuleSplitStyle
 import org.typelevel.sbt.gha.JobEnvironment
 import org.typelevel.sbt.gha.PermissionValue
 import org.typelevel.sbt.gha.Permissions
@@ -74,6 +75,7 @@ val web = project
     scalaJSUseMainModuleInitializer := true,
     scalaJSLinkerConfig ~= {
       _.withModuleKind(ModuleKind.ESModule)
+        .withModuleSplitStyle(ModuleSplitStyle.SmallModulesFor(List("com.kubukoz.stretchthekin")))
     },
     libraryDependencies ++= Seq(
       "com.armanbilge" %%% "calico" % "0.2.3",

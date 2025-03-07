@@ -1,3 +1,5 @@
+package com.kubukoz.stretchthekin
+
 import calico.IOWebApp
 import calico.html.io.*
 import calico.html.io.given
