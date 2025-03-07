@@ -10,6 +10,8 @@ import cats.syntax.all.*
 import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
 import fs2.dom.HtmlElement
+import io.circe.*
+import io.circe.syntax.*
 import monocle.Focus
 import monocle.syntax.all.*
 
@@ -29,10 +31,33 @@ extension [A](sigref: SignallingRef[IO, A]) {
 object App extends IOWebApp {
 
   def render: Resource[IO, HtmlElement[IO]] = div(
-    Step.toInstructions(Session.kneeIrEr45minute).map(p(_))
+    s"total time: ${Step.toScreens(Session.kneeIrEr45minute).map(_.time).flatten.combineAll.toMinutes}mins",
+    ul(
+      Step.toScreens(Session.kneeIrEr45minute).map(s => li(renderScreen(s)))
+    ),
+    Step.toInstructions(Session.kneeIrEr45minute).map(p(_)),
   )
 
-  enum Step {
+  def renderScreen(s: Screen) = div(
+    p(s.action + {
+      if s.variants.isEmpty then ""
+      else
+        s" (${s.variants.mkString(", ")})"
+    }),
+    s.time.fold(span(""))(d => p(s"Time: ${d.toSeconds} seconds")),
+    s.reps.fold(span(""))(n => p(s"Reps: $n")),
+  )
+
+  given Encoder[FiniteDuration] = _.toString.asJson
+
+  case class Screen(
+    action: String,
+    time: Option[FiniteDuration],
+    reps: Option[Int],
+    variants: List[String],
+  ) derives Encoder.AsObject
+
+  enum Step derives Encoder.AsObject {
     case Empty
     case Single(action: String, timed: Option[FiniteDuration])
     case Many(steps: List[Step])
@@ -51,6 +76,8 @@ object App extends IOWebApp {
 
     def combine(another: Step): Step =
       (this, another) match {
+        case (Empty, b)         => b
+        case (a, Empty)         => a
         case (Many(a), Many(b)) => Many(a ++ b)
         case (Many(a), b)       => Many(a :+ b)
         case (a, Many(b))       => Many(a +: b)
@@ -60,7 +87,6 @@ object App extends IOWebApp {
   }
 
   object Step {
-    def empty: Step = Empty
     def steps(steps: Step*): Step = steps.toList.combineAll
     def step(action: String): Step.Single = Step.Single(action, timed = None)
 
@@ -71,6 +97,26 @@ object App extends IOWebApp {
     given Monoid[Step] with {
       def empty: Step = Empty
       def combine(x: Step, y: Step): Step = x.combine(y)
+    }
+
+    def toScreens(step: Step): List[Screen] = {
+      def go(step: Step, reps: Option[Int], variants: List[String]): List[Screen] = {
+        val recurse = go(_, reps, variants)
+
+        step match {
+          case Empty                  => Nil
+          case Many(steps)            => steps.flatMap(recurse)
+          case Single(action, timed)  => Screen(action, timed, reps, variants) :: Nil
+          case Reps(step, n)          => go(step, Some(reps.getOrElse(1) * n), variants)
+          case Sets(step, n, between) => recurse(List.fill(n)(step).intercalate(between))
+          case WithVariants(step, vs) =>
+            vs.flatMap { variant =>
+              go(step, reps, variant :: variants)
+            }
+        }
+      }
+
+      go(step, reps = None, variants = Nil)
     }
 
     def toInstructions(step: Step): List[Resource[IO, HtmlElement[IO]]] =
