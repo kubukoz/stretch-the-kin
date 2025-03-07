@@ -31,11 +31,10 @@ extension [A](sigref: SignallingRef[IO, A]) {
 object App extends IOWebApp {
 
   def render: Resource[IO, HtmlElement[IO]] = div(
-    s"total time: ${Step.toScreens(Session.kneeIrEr45minute).map(_.time).flatten.combineAll.toMinutes}mins",
+    s"total time: ${Step.toScreens(Session.kneeIrEr45minute).map(_.time).combineAll.toMinutes}mins plus ${(Step.toScreens(Session.kneeIrEr45minute).size * 5.seconds).toMinutes}min breaks",
     ul(
       Step.toScreens(Session.kneeIrEr45minute).map(s => li(renderScreen(s)))
     ),
-    Step.toInstructions(Session.kneeIrEr45minute).map(p(_)),
   )
 
   def renderScreen(s: Screen) = div(
@@ -44,7 +43,7 @@ object App extends IOWebApp {
       else
         s" (${s.variants.mkString(", ")})"
     }),
-    s.time.fold(span(""))(d => p(s"Time: ${d.toSeconds} seconds")),
+    p(s"Time: ${s.time.toSeconds} seconds"),
     s.reps.fold(span(""))(n => p(s"Reps: $n")),
   )
 
@@ -52,24 +51,30 @@ object App extends IOWebApp {
 
   case class Screen(
     action: String,
-    time: Option[FiniteDuration],
+    time: FiniteDuration,
     reps: Option[Int],
     variants: List[String],
   ) derives Encoder.AsObject
 
   enum Step derives Encoder.AsObject {
     case Empty
-    case Single(action: String, timed: Option[FiniteDuration])
+    case Single(action: String)
     case Many(steps: List[Step])
     case Sets(step: Step, n: Int, between: Step)
     case WithVariants(step: Step, variants: List[String])
     case Reps(step: Step, n: Int)
+    case Timed(step: Step, d: FiniteDuration)
 
     def reps(n: Int): Step = Reps(this, n)
+    def timed(d: FiniteDuration): Step = Timed(this, d)
+
     def sets(n: Int, between: Step): Step = Sets(this, n, between)
 
     // repeats this step for each side (left, right)
     def leftRight: Step = WithVariants(this, List("Left side", "Right side"))
+
+    // repeats this step for each rotation direction
+    def counterAndClockwise: Step = WithVariants(this, List("Clockwise", "Counterclockwise"))
 
     // repeats this step for IR/ER
     def internalExternal: Step = WithVariants(this, List("Internal rotation", "External rotation"))
@@ -88,11 +93,7 @@ object App extends IOWebApp {
 
   object Step {
     def steps(steps: Step*): Step = steps.toList.combineAll
-    def step(action: String): Step.Single = Step.Single(action, timed = None)
-
-    extension (s: Step.Single) {
-      def timed(d: FiniteDuration): Step = s.copy(timed = d.some)
-    }
+    def step(action: String): Step.Single = Step.Single(action)
 
     given Monoid[Step] with {
       def empty: Step = Empty
@@ -100,58 +101,36 @@ object App extends IOWebApp {
     }
 
     def toScreens(step: Step): List[Screen] = {
-      def go(step: Step, reps: Option[Int], variants: List[String]): List[Screen] = {
-        val recurse = go(_, reps, variants)
+      def go(
+        step: Step,
+        reps: Option[Int],
+        variants: List[String],
+        duration: Option[FiniteDuration],
+      ): List[Screen] = {
+        val recurse = go(_, reps, variants, duration)
 
         step match {
+          case Single(action) =>
+            Screen(
+              action,
+              duration.getOrElse(sys.error("invalid state: no time on screen")),
+              reps,
+              variants,
+            ) :: Nil
           case Empty                  => Nil
           case Many(steps)            => steps.flatMap(recurse)
-          case Single(action, timed)  => Screen(action, timed, reps, variants) :: Nil
-          case Reps(step, n)          => go(step, Some(reps.getOrElse(1) * n), variants)
+          case Reps(step, n)          => go(step, Some(n), variants, duration)
+          case Timed(step, d)         => go(step, reps, variants, Some(d))
           case Sets(step, n, between) => recurse(List.fill(n)(step).intercalate(between))
           case WithVariants(step, vs) =>
             vs.flatMap { variant =>
-              go(step, reps, variant :: variants)
+              go(step, reps, variant :: variants, duration)
             }
         }
       }
 
-      go(step, reps = None, variants = Nil)
+      go(step, reps = None, variants = Nil, duration = None)
     }
-
-    def toInstructions(step: Step): List[Resource[IO, HtmlElement[IO]]] =
-      step match {
-        case Empty       => Nil
-        case Many(steps) => steps.flatMap(toInstructions)
-        case Sets(step, n, between) =>
-          List(
-            p(s"$n sets of:"),
-            ul(
-              toInstructions(step).map(li(_)),
-              li("Between sets:"),
-              toInstructions(between),
-            ),
-          )
-        case WithVariants(step, variants) =>
-          List(
-            p("For each variant: " + variants.mkString(", ")),
-            ul(
-              toInstructions(step).map(li(_))
-            ),
-          )
-
-        case Reps(step, n) =>
-          List(
-            p(s"$n reps of:"),
-            ul(
-              toInstructions(step).map(li(_))
-            ),
-          )
-        case Single(action, timed) =>
-          List(
-            p(action + timed.fold("")(d => s" for ${d.toSeconds} seconds"))
-          )
-      }
 
   }
 
@@ -160,10 +139,10 @@ object App extends IOWebApp {
     import Step.*
 
     val kneeIrEr45minute = steps(
-      step("Knee CARs").reps(8).leftRight,
-      step("Capsular knee CARs").reps(10).leftRight,
+      step("Knee CARs").reps(8).timed(30.seconds).counterAndClockwise.leftRight,
+      step("Capsular knee CARs").reps(10).timed(30.seconds).leftRight,
       steps(
-        step("Get into position: 90-90 for internal rotation on the back"),
+        step("Get into position: 90-90 for internal rotation on the back").timed(30.seconds),
         step("Passive stretch").timed(2.minutes),
         steps(
           step("PAILs - begin slowly").timed(20.seconds),
@@ -179,8 +158,8 @@ object App extends IOWebApp {
         step("Lift up and hold").timed(15.seconds),
         step("Slowly release").timed(10.seconds),
       ).leftRight.internalExternal,
-      step("Knee CARs").reps(6).leftRight,
-      step("Capsular knee CARs").reps(10).leftRight,
+      step("Knee CARs").reps(6).timed(25.seconds).leftRight,
+      step("Capsular knee CARs").reps(10).timed(30.seconds).leftRight,
     )
 
   }
