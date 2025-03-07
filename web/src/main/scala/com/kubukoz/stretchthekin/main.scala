@@ -13,7 +13,7 @@ import fs2.dom.HtmlElement
 import monocle.Focus
 import monocle.syntax.all.*
 
-import scala.concurrent.duration.*
+import scala.concurrent.duration.{span as _, *}
 
 extension [A](sigref: SignallingRef[IO, A]) {
 
@@ -73,41 +73,37 @@ object App extends IOWebApp {
       def combine(x: Step, y: Step): Step = x.combine(y)
     }
 
-    def toInstructions(step: Step): List[String] =
+    def toInstructions(step: Step): List[Resource[IO, HtmlElement[IO]]] =
       step match {
         case Empty       => Nil
         case Many(steps) => steps.flatMap(toInstructions)
         case Sets(step, n, between) =>
-          List.concat(
-            List(s"$n sets of:"),
-            toInstructions(step).map("-" + _),
-            List("Between sets:"),
-            toInstructions(between).map("-" + _),
+          List(
+            p(s"$n sets of:"),
+            ul(
+              toInstructions(step).map(li(_)),
+              li("Between sets:"),
+              toInstructions(between),
+            ),
           )
         case WithVariants(step, variants) =>
-          val underlying = toInstructions(step)
-
-          if underlying.lengthIs == 1 then List(
-            s"For each variant: " + variants.mkString(", ") + ": " + underlying.head
+          List(
+            p("For each variant: " + variants.mkString(", ")),
+            ul(
+              toInstructions(step).map(li(_))
+            ),
           )
-          else
-            List.concat(
-              List("For each variant: " + variants.mkString(", ")),
-              underlying.map("-" + _),
-            )
 
         case Reps(step, n) =>
-          step match {
-            case s: Single => List(s"$n reps of: ${toInstructions(s).mkString(", ")}")
-            case _ =>
-              List.concat(
-                List(s"$n reps of:"),
-                toInstructions(step).map("-" + _),
-              )
-          }
+          List(
+            p(s"$n reps of:"),
+            ul(
+              toInstructions(step).map(li(_))
+            ),
+          )
         case Single(action, timed) =>
           List(
-            action + timed.fold("")(d => s" for ${d.toSeconds} seconds")
+            p(action + timed.fold("")(d => s" for ${d.toSeconds} seconds"))
           )
       }
 
