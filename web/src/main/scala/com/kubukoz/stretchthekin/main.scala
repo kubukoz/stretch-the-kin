@@ -78,10 +78,6 @@ object ScreenComponent {
         .void
 
     div(
-      styleAttr <-- isActive.map {
-        case true  => "background-color: lightgreen"
-        case false => ""
-      },
       p(fullText),
       CountdownComponent.render(
         countdownFrom = s.time,
@@ -117,7 +113,8 @@ object App extends IOWebApp {
         ul(
           allScreens
             .zipWithIndex
-            .map((s, i) =>
+            .map { (s, i) =>
+              val isActive = activeIndex.map(_ === i.some)
               li(
                 ScreenComponent.renderScreen(
                   s,
@@ -127,10 +124,15 @@ object App extends IOWebApp {
                       case x                        => x
                     }
                   },
-                  isActive = activeIndex.map(_ === i.some),
-                )
+                  isActive = isActive,
+                ),
+                button("Activate", disabled <-- isActive, onClick(activeIndex.set(i.some))),
+                styleAttr <-- isActive.map {
+                  case true  => "background-color: lightgreen"
+                  case false => "background-color: #eee"
+                },
               )
-            )
+            }
         ),
       )
   }
