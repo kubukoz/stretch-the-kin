@@ -6,7 +6,7 @@
     "vite": "^6.1.0"
   },
   "scripts": {
-    "start": "concurrently \"cd ../ && sleep 1 && retry sbt ~fastLinkJS\" \"retry vite\"",
+    "start": "concurrently \"cd ../ && sleep 1 && retry sbt ~fastLinkJS\" \"retry vite -- --open --host\"",
     "build": "vite build"
   },
   "type": "module"

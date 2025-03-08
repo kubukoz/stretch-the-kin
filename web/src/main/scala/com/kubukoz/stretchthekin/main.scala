@@ -14,7 +14,6 @@ import io.circe.*
 import io.circe.syntax.*
 import monocle.Focus
 import monocle.syntax.all.*
-import scalajs.js
 import util.chaining.*
 
 import scala.concurrent.duration.{span as _, *}
@@ -40,6 +39,23 @@ case class Screen(
   variants: List[String],
 ) derives Encoder.AsObject
 
+object Speaker {
+
+  def speak(text: String): IO[Unit] = SpeechSynthesisIO
+    .getVoices
+    .flatMap { voices =>
+      SpeechSynthesisIO.speak(new SpeechSynthesisUtterance(text).tap { u =>
+        u.voice =
+          voices
+            .find(v => v.name.startsWith("Eddy") && v.lang == "en-US")
+            .head
+        u.pitch = 0.5
+        u.rate = 1.1
+      })
+    }
+
+}
+
 object ScreenComponent {
 
   def renderScreen(s: Screen, isActive: Signal[IO, Boolean], onFinished: IO[Unit]) = {
@@ -54,27 +70,7 @@ object ScreenComponent {
       isActive
         .discrete
         .filter(identity)
-        .foreach(_ =>
-          IO {
-            val synth = org
-              .scalajs
-              .dom
-              .window
-              .asInstanceOf[js.Dynamic]
-              .speechSynthesis
-              .asInstanceOf[SpeechSynthesis]
-
-            synth
-              .speak(
-                new SpeechSynthesisUtterance(fullText).tap { u =>
-                  u.voice =
-                    synth.getVoices().find(v => v.name.startsWith("Eddy") && v.lang == "en-US").head
-                  u.pitch = 0.5
-                  u.rate = 1.1
-                }
-              )
-          }.void
-        )
+        .foreach(_ => Speaker.speak(fullText))
         .compile
         .drain
         .background
@@ -97,11 +93,18 @@ object ScreenComponent {
 
 object App extends IOWebApp {
 
-  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(0).toResource.flatMap {
+  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(none[Int]).toResource.flatMap {
     activeIndex =>
       val allScreens = Step
         .toScreens(Session.kneeIrEr45minute)
       div(
+        button(
+          "Begin",
+          onClick {
+            Speaker.speak("Starting the session") *>
+              activeIndex.set(0.some)
+          },
+        ),
         ul(
           allScreens
             .zipWithIndex
@@ -110,14 +113,16 @@ object App extends IOWebApp {
                 ScreenComponent.renderScreen(
                   s,
                   onFinished = activeIndex.update {
-                    case x if x < allScreens.size => x + 1
-                    case x                        => x
+                    _.map {
+                      case x if x < allScreens.size => x + 1
+                      case x                        => x
+                    }
                   },
-                  isActive = activeIndex.map(_ === i),
+                  isActive = activeIndex.map(_ === i.some),
                 )
               )
             )
-        )
+        ),
       )
   }
 
