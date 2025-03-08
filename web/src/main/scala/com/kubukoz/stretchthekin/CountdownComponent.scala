@@ -43,6 +43,7 @@ object CountdownComponent {
     countdownFrom: FiniteDuration,
     refreshRate: FiniteDuration,
     onFinished: IO[Unit],
+    unpauseWhen: Signal[IO, Boolean],
   ): Resource[IO, HtmlElement[IO]] = SignallingRef[IO]
     .of(State(current = CurrentCounter.Paused, stored = countdownFrom))
     .toResource
@@ -51,6 +52,21 @@ object CountdownComponent {
       val paused = state.map(_.paused)
       val current = state.lens(_.current)
       val finished = state.map(_.finished)
+
+      val unpause = IO.realTime.flatMap { now =>
+        state.update { s =>
+          s.copy(
+            current = CurrentCounter.Running(now, now)
+          )
+        }
+      }
+
+      val reset = state.update { s =>
+        s.copy(
+          current = CurrentCounter.Paused,
+          stored = countdownFrom,
+        )
+      }
 
       val switch = IO.realTime.flatMap { now =>
         state.update { s =>
@@ -73,7 +89,7 @@ object CountdownComponent {
         fs2
           .Stream
           .fixedDelay[IO](refreshRate)
-          .interruptWhen(finished)
+          .pauseWhen(finished)
           .foreach { _ =>
             IO.realTime.flatMap { now =>
               current.update {
@@ -97,10 +113,20 @@ object CountdownComponent {
           .background
           .void
 
+      val unpauseExternal =
+        unpauseWhen
+          .discrete
+          .filter(identity)
+          .foreach(_ => unpause)
+          .compile
+          .drain
+          .background
+          .void
+
       div(
-        "Current time: ",
+        "Remaining: ",
         total.map { e =>
-          s"${e.toSeconds}:${e.toMillis % 1000}"
+          s"${e.toSeconds}.${(e.toMillis % 1000) / 10}s"
         },
         button(
           disabled <-- finished,
@@ -110,8 +136,13 @@ object CountdownComponent {
           },
           onClick(switch),
         ),
+        button(
+          "Reset",
+          onClick(reset),
+        ),
         updateState,
         notifyFinished,
+        unpauseExternal,
       )
     }
 

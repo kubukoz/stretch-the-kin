@@ -14,8 +14,11 @@ import io.circe.*
 import io.circe.syntax.*
 import monocle.Focus
 import monocle.syntax.all.*
+import scalajs.js
+import util.chaining.*
 
 import scala.concurrent.duration.{span as _, *}
+import scala.scalajs.js.JSConverters.*
 
 extension [A](sigref: SignallingRef[IO, A]) {
 
@@ -28,33 +31,95 @@ extension [A](sigref: SignallingRef[IO, A]) {
   inline def sig: Signal[IO, A] = sigref
 }
 
+given Encoder[FiniteDuration] = _.toString.asJson
+
+case class Screen(
+  action: String,
+  time: FiniteDuration,
+  reps: Option[Int],
+  variants: List[String],
+) derives Encoder.AsObject
+
+object ScreenComponent {
+
+  def renderScreen(s: Screen, isActive: Signal[IO, Boolean], onFinished: IO[Unit]) = {
+    val fullText =
+      s.action + {
+        if s.variants.isEmpty then ""
+        else
+          s" (${s.variants.mkString(", ")})"
+      }
+
+    val announce =
+      isActive
+        .discrete
+        .filter(identity)
+        .foreach(_ =>
+          IO {
+            val synth = org
+              .scalajs
+              .dom
+              .window
+              .asInstanceOf[js.Dynamic]
+              .speechSynthesis
+              .asInstanceOf[SpeechSynthesis]
+
+            synth
+              .speak(
+                new SpeechSynthesisUtterance(fullText).tap { u =>
+                  u.voice =
+                    synth.getVoices().find(v => v.name.startsWith("Eddy") && v.lang == "en-US").head
+                  u.pitch = 0.5
+                  u.rate = 1.1
+                }
+              )
+          }.void
+        )
+        .compile
+        .drain
+        .background
+        .void
+
+    div(
+      p(fullText),
+      CountdownComponent.render(
+        countdownFrom = s.time,
+        refreshRate = 1.second / 60,
+        onFinished = onFinished,
+        unpauseWhen = isActive,
+      ),
+      s.reps.fold(span(""))(n => p(s"Reps: $n")),
+      announce,
+    )
+  }
+
+}
+
 object App extends IOWebApp {
 
-  def render: Resource[IO, HtmlElement[IO]] = div(
-    s"total time: ${Step.toScreens(Session.kneeIrEr45minute).map(_.time).combineAll.toMinutes}mins plus ${(Step.toScreens(Session.kneeIrEr45minute).size * 5.seconds).toMinutes}min breaks",
-    ul(
-      Step.toScreens(Session.kneeIrEr45minute).map(s => li(renderScreen(s)))
-    ),
-  )
-
-  def renderScreen(s: Screen) = div(
-    p(s.action + {
-      if s.variants.isEmpty then ""
-      else
-        s" (${s.variants.mkString(", ")})"
-    }),
-    p(s"Time: ${s.time.toSeconds} seconds"),
-    s.reps.fold(span(""))(n => p(s"Reps: $n")),
-  )
-
-  given Encoder[FiniteDuration] = _.toString.asJson
-
-  case class Screen(
-    action: String,
-    time: FiniteDuration,
-    reps: Option[Int],
-    variants: List[String],
-  ) derives Encoder.AsObject
+  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(0).toResource.flatMap {
+    activeIndex =>
+      val allScreens = Step
+        .toScreens(Session.kneeIrEr45minute)
+      div(
+        ul(
+          allScreens
+            .zipWithIndex
+            .map((s, i) =>
+              li(
+                ScreenComponent.renderScreen(
+                  s,
+                  onFinished = activeIndex.update {
+                    case x if x < allScreens.size => x + 1
+                    case x                        => x
+                  },
+                  isActive = activeIndex.map(_ === i),
+                )
+              )
+            )
+        )
+      )
+  }
 
   enum Step derives Encoder.AsObject {
     case Empty
@@ -67,6 +132,16 @@ object App extends IOWebApp {
 
     def reps(n: Int): Step = Reps(this, n)
     def timed(d: FiniteDuration): Step = Timed(this, d)
+
+    def mapTimes(f: FiniteDuration => FiniteDuration): Step =
+      this match {
+        case Timed(step, d)               => Timed(step.mapTimes(f), f(d))
+        case Many(steps)                  => Many(steps.map(_.mapTimes(f)))
+        case Sets(step, n, between)       => Sets(step.mapTimes(f), n, between.mapTimes(f))
+        case WithVariants(step, variants) => WithVariants(step.mapTimes(f), variants)
+        case Reps(step, n)                => Reps(step.mapTimes(f), n)
+        case _                            => this
+      }
 
     def sets(n: Int, between: Step): Step = Sets(this, n, between)
 
@@ -139,6 +214,7 @@ object App extends IOWebApp {
     import Step.*
 
     val kneeIrEr45minute = steps(
+      step("Prepare - sit down for knee CARs").timed(5.seconds),
       step("Knee CARs").reps(8).timed(30.seconds).counterAndClockwise.leftRight,
       step("Capsular knee CARs").reps(10).timed(30.seconds).leftRight,
       steps(
@@ -161,6 +237,8 @@ object App extends IOWebApp {
       step("Knee CARs").reps(6).timed(25.seconds).leftRight,
       step("Capsular knee CARs").reps(10).timed(30.seconds).leftRight,
     )
+      // for debugging
+      .mapTimes(_ => 2.seconds)
 
   }
 
