@@ -247,8 +247,8 @@ object App extends IOWebApp {
       step("Knee CARs").reps(6).timed(25.seconds).leftRight,
       step("Capsular knee CARs").reps(10).timed(30.seconds).leftRight,
     )
-      // for debugging
-      .mapTimes(_ => 2.seconds)
+    // for debugging
+    // .mapTimes(_ => 2.seconds)
 
   }
 
