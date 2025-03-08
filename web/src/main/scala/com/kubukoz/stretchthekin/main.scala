@@ -4,6 +4,7 @@ import calico.IOWebApp
 import calico.html.io.*
 import calico.html.io.given
 import cats.effect.IO
+import cats.effect.kernel.Deferred
 import cats.effect.kernel.Resource
 import cats.kernel.Monoid
 import cats.syntax.all.*
@@ -98,13 +99,17 @@ object App extends IOWebApp {
       val allScreens = Step
         .toScreens(Session.kneeIrEr45minute)
       div(
-        button(
-          "Begin",
-          onClick {
-            Speaker.speak("Starting the session") *>
-              activeIndex.set(0.some)
-          },
-        ),
+        SignallingRef[IO].of(false).toResource.flatMap { clicked =>
+          button(
+            disabled <-- clicked,
+            "Begin",
+            onClick {
+              clicked.set(true) *>
+                Speaker.speak("Starting the session") *>
+                activeIndex.set(0.some)
+            },
+          )
+        },
         ul(
           allScreens
             .zipWithIndex
