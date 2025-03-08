@@ -78,6 +78,10 @@ object ScreenComponent {
         .void
 
     div(
+      styleAttr <-- isActive.map {
+        case true  => "background-color: lightgreen"
+        case false => ""
+      },
       p(fullText),
       CountdownComponent.render(
         countdownFrom = s.time,
