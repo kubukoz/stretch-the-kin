@@ -113,12 +113,13 @@ object App extends IOWebApp {
       div(
         SignallingRef[IO].of(false).toResource.flatMap { clicked =>
           button(
-            disabled <-- clicked,
-            "Begin",
+            disabled <-- (clicked, activeIndex.map(_ != none)).mapN(_ || _),
+            "Check voice",
             onClick {
               clicked.set(true) *>
-                Speaker.speak("Starting the session") *>
-                Sounds.playShortSignal *>
+                Sounds.playShortSignal.surround {
+                  Speaker.speak("Starting the session")
+                } *>
                 activeIndex.set(0.some)
             },
           )

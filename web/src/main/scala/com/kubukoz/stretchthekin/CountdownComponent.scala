@@ -74,7 +74,7 @@ object CountdownComponent {
           .discrete
           .changes
           .filter(identity)
-          .foreach(_ => Sounds.playShortSignal)
+          .foreach(_ => Sounds.playShortSignal.surround(IO.sleep(500.millis)))
           .compile
           .drain
           .background
