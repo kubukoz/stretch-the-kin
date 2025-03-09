@@ -11,7 +11,6 @@ import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
 import fs2.dom.HtmlElement
 import monocle.syntax.all.*
-import org.scalajs.dom.AudioContext
 
 import scala.concurrent.duration.*
 
@@ -56,15 +55,18 @@ object CountdownComponent {
     countdownFrom: FiniteDuration,
     refreshRate: FiniteDuration,
     onFinished: IO[Unit],
-    unpauseWhen: Signal[IO, Boolean],
+    isActive: Signal[IO, Boolean],
   ): Resource[IO, HtmlElement[IO]] = SignallingRef[IO]
     .of(State(current = CurrentCounter.Paused, stored = countdownFrom, initial = countdownFrom))
     .toResource
     .flatMap { state =>
-      val total = state.map(_.total)
-      val paused = state.map(_.paused)
+      val total = state.map(_.total).changes
+      val paused = state.map(_.paused).changes
       val current = state.lens(_.current)
-      val finished = state.map(_.finished)
+      val finished = state.map(_.finished).changes
+
+      val finishedOrInactive = (finished, isActive.map(!_)).mapN(_ || _)
+      val finishedOrPaused = (finished, paused).mapN(_ || _)
 
       val ending =
         state
@@ -78,20 +80,21 @@ object CountdownComponent {
           .background
           .void
 
-      val unpause = IO.realTime.flatMap { now =>
-        state.update { s =>
-          s.copy(
-            current = CurrentCounter.Running(now, now)
-          )
-        }
-      }
-
       val reset = state.update { s =>
         s.copy(
           current = CurrentCounter.Paused,
           stored = countdownFrom,
         )
       }
+
+      val unpause =
+        reset *> IO.realTime.flatMap { now =>
+          state.update { s =>
+            s.copy(
+              current = CurrentCounter.Running(now, now)
+            )
+          }
+        }
 
       val switch = IO.realTime.flatMap { now =>
         state.update { s =>
@@ -114,7 +117,7 @@ object CountdownComponent {
         fs2
           .Stream
           .fixedDelay[IO](refreshRate)
-          .pauseWhen(finished)
+          .pauseWhen(finishedOrPaused)
           .foreach { _ =>
             IO.realTime.flatMap { now =>
               current.update {
@@ -131,6 +134,7 @@ object CountdownComponent {
       val notifyFinished =
         finished
           .discrete
+          .changes
           .filter(identity)
           .foreach(_ => onFinished)
           .compile
@@ -139,22 +143,27 @@ object CountdownComponent {
           .void
 
       val unpauseExternal =
-        unpauseWhen
+        isActive
           .discrete
-          .filter(identity)
-          .foreach(_ => unpause)
+          .changes
+          .foreach {
+            case true  => unpause
+            case false => reset
+          }
           .compile
           .drain
           .background
           .void
 
       div(
-        "Remaining: ",
-        total.map { e =>
-          s"${e.toSeconds}.${(e.toMillis % 1000) / 10}s"
-        },
+        p(
+          "Remaining: ",
+          total.map { e =>
+            s"${e.toSeconds}.${(e.toMillis % 1000) / 10}s"
+          },
+        ),
         button(
-          disabled <-- finished,
+          disabled <-- finishedOrInactive,
           paused.map {
             case true  => "Resume"
             case false => "Pause"
@@ -164,6 +173,7 @@ object CountdownComponent {
         button(
           "Reset",
           onClick(reset),
+          disabled <-- isActive.map(!_),
         ),
         updateState,
         notifyFinished,

@@ -4,7 +4,6 @@ import calico.IOWebApp
 import calico.html.io.*
 import calico.html.io.given
 import cats.effect.IO
-import cats.effect.kernel.Deferred
 import cats.effect.kernel.Resource
 import cats.kernel.Monoid
 import cats.syntax.all.*
@@ -15,7 +14,7 @@ import io.circe.*
 import io.circe.syntax.*
 import monocle.Focus
 import monocle.syntax.all.*
-import org.scalajs.dom.AudioContext
+import org.scalajs.dom.HTMLElement
 import util.chaining.*
 
 import scala.concurrent.duration.{span as _, *}
@@ -50,7 +49,8 @@ object Speaker {
         u.voice =
           voices
             .find(v => v.name.startsWith("Eddy") && v.lang == "en-US")
-            .head
+            .headOption
+            .orUndefined
         u.pitch = 0.5
         u.rate = 1.1
       })
@@ -78,17 +78,31 @@ object ScreenComponent {
         .background
         .void
 
-    div(
-      p(fullText),
-      CountdownComponent.render(
-        countdownFrom = s.time,
-        refreshRate = 1.second / 60,
-        onFinished = onFinished,
-        unpauseWhen = isActive,
-      ),
-      s.reps.fold(span(""))(n => p(s"Reps: $n")),
-      announce,
-    )
+    div.withSelf { self =>
+      val scrollInto =
+        isActive
+          .discrete
+          .changes
+          .filter(identity)
+          .foreach(_ => IO(self.asInstanceOf[HTMLElement].scrollIntoView(top = false)))
+          .compile
+          .drain
+          .background
+          .void
+
+      (
+        p(fullText),
+        CountdownComponent.render(
+          countdownFrom = s.time,
+          refreshRate = 1.second / 30,
+          onFinished = onFinished,
+          isActive = isActive,
+        ),
+        s.reps.fold(span(""))(n => p(s"Reps: $n")),
+        announce,
+        scrollInto,
+      )
+    }
   }
 
 }
@@ -107,6 +121,7 @@ object App extends IOWebApp {
             onClick {
               clicked.set(true) *>
                 Speaker.speak("Starting the session") *>
+                Sounds.playShortSignal *>
                 activeIndex.set(0.some)
             },
           )
@@ -115,7 +130,7 @@ object App extends IOWebApp {
           allScreens
             .zipWithIndex
             .map { (s, i) =>
-              val isActive = activeIndex.map(_ === i.some)
+              val isActive = activeIndex.map(_ === i.some).changes
               li(
                 ScreenComponent.renderScreen(
                   s,
@@ -127,11 +142,11 @@ object App extends IOWebApp {
                   },
                   isActive = isActive,
                 ),
-                button("Activate", disabled <-- isActive, onClick(activeIndex.set(i.some))),
                 styleAttr <-- isActive.map {
                   case true  => "background-color: lightgreen"
                   case false => "background-color: #eee"
                 },
+                onClick(activeIndex.set(i.some)),
               )
             }
         ),

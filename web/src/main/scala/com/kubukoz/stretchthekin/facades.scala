@@ -8,7 +8,7 @@ import scala.scalajs.js.annotation.JSGlobal
 @js.native
 @JSGlobal
 class SpeechSynthesisUtterance(message: String) extends js.Object {
-  var voice: SpeechSynthesisVoice = js.native
+  var voice: js.UndefOr[SpeechSynthesisVoice] = js.native
   var pitch: Double = js.native
   var rate: Double = js.native
   var onend: js.Function0[Unit] = js.native
