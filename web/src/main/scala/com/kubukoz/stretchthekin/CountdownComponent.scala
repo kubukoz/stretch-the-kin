@@ -68,7 +68,7 @@ object CountdownComponent {
       val finishedOrInactive = (finished, isActive.map(!_)).mapN(_ || _)
       val finishedOrPaused = (finished, paused).mapN(_ || _)
 
-      val ending =
+      val playToneWhenEnding =
         state
           .map(_.ending)
           .discrete
@@ -78,7 +78,6 @@ object CountdownComponent {
           .compile
           .drain
           .background
-          .void
 
       val reset = state.update { s =>
         s.copy(
@@ -129,7 +128,6 @@ object CountdownComponent {
           .compile
           .drain
           .background
-          .void
 
       val notifyFinished =
         finished
@@ -140,7 +138,6 @@ object CountdownComponent {
           .compile
           .drain
           .background
-          .void
 
       val unpauseExternal =
         isActive
@@ -153,44 +150,44 @@ object CountdownComponent {
           .compile
           .drain
           .background
-          .void
 
-      div(
-        p(
-          "Remaining: ",
-          total.map { e =>
-            s"${e.toSeconds}.${(e.toMillis % 1000) / 10}s"
-          },
-        ),
-        button.withSelf { self =>
-          (
-            disabled <-- finishedOrInactive,
-            paused.map {
-              case true  => "Resume"
-              case false => "Pause"
+      updateState *>
+        notifyFinished *>
+        unpauseExternal *>
+        playToneWhenEnding *>
+        div(
+          p(
+            "Remaining: ",
+            total.map { e =>
+              s"${e.toSeconds}.${(e.toMillis % 1000) / 10}s"
             },
-            onClick(switch),
-            isActive
-              .discrete
-              .changes
-              .filter(identity)
-              .foreach(_ => IO.cede *> self.focus)
-              .compile
-              .drain
-              .background
-              .void,
-          )
-        },
-        button(
-          "Reset",
-          onClick(reset),
-          disabled <-- isActive.map(!_),
-        ),
-        updateState,
-        notifyFinished,
-        unpauseExternal,
-        ending,
-      )
+          ),
+          button.withSelf { self =>
+            val focusOnActivate =
+              isActive
+                .discrete
+                .changes
+                .filter(identity)
+                .foreach(_ => IO.cede *> self.focus)
+                .compile
+                .drain
+                .background
+
+            focusOnActivate.as(
+              disabled <-- finishedOrInactive,
+              paused.map {
+                case true  => "Resume"
+                case false => "Pause"
+              },
+              onClick(switch),
+            )
+          },
+          button(
+            "Reset",
+            onClick(reset),
+            disabled <-- isActive.map(!_),
+          ),
+        )
     }
 
 }

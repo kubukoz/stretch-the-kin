@@ -76,7 +76,6 @@ object ScreenComponent {
         .compile
         .drain
         .background
-        .void
 
     div.withSelf { self =>
       val scrollInto =
@@ -88,20 +87,18 @@ object ScreenComponent {
           .compile
           .drain
           .background
-          .void
 
-      (
-        p(fullText),
-        CountdownComponent.render(
-          countdownFrom = s.time,
-          refreshRate = 1.second / 30,
-          onFinished = onFinished,
-          isActive = isActive,
-        ),
-        s.reps.fold(span(""))(n => p(s"Reps: $n")),
-        announce,
-        scrollInto,
-      )
+      announce *>
+        scrollInto.as(
+          p(fullText),
+          CountdownComponent.render(
+            countdownFrom = s.time,
+            refreshRate = 1.second / 30,
+            onFinished = onFinished,
+            isActive = isActive,
+          ),
+          s.reps.fold(span(""))(n => p(s"Reps: $n")),
+        )
     }
   }
 
