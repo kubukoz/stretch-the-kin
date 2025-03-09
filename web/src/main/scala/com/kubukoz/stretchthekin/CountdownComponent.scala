@@ -162,14 +162,25 @@ object CountdownComponent {
             s"${e.toSeconds}.${(e.toMillis % 1000) / 10}s"
           },
         ),
-        button(
-          disabled <-- finishedOrInactive,
-          paused.map {
-            case true  => "Resume"
-            case false => "Pause"
-          },
-          onClick(switch),
-        ),
+        button.withSelf { self =>
+          (
+            disabled <-- finishedOrInactive,
+            paused.map {
+              case true  => "Resume"
+              case false => "Pause"
+            },
+            onClick(switch),
+            isActive
+              .discrete
+              .changes
+              .filter(identity)
+              .foreach(_ => IO.cede *> self.focus)
+              .compile
+              .drain
+              .background
+              .void,
+          )
+        },
         button(
           "Reset",
           onClick(reset),
