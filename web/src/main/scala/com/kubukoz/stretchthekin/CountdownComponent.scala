@@ -11,6 +11,7 @@ import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
 import fs2.dom.HtmlElement
 import monocle.syntax.all.*
+import org.scalajs.dom.AudioContext
 
 import scala.concurrent.duration.*
 
@@ -28,9 +29,21 @@ object CountdownComponent {
 
   }
 
-  private case class State(current: CurrentCounter, stored: FiniteDuration) {
+  private case class State(
+    current: CurrentCounter,
+    stored: FiniteDuration,
+    initial: FiniteDuration,
+  ) {
 
     private val cutoff = 0.seconds
+
+    def ending: Boolean =
+      if initial <= 2.seconds
+      then total <= 1.seconds
+      else if initial <= 5.seconds
+      then total <= 2.seconds
+      else
+        total <= 5.seconds
 
     def finished: Boolean = total <= cutoff
     def total: FiniteDuration = (stored - current.runningTotal) max cutoff
@@ -45,13 +58,25 @@ object CountdownComponent {
     onFinished: IO[Unit],
     unpauseWhen: Signal[IO, Boolean],
   ): Resource[IO, HtmlElement[IO]] = SignallingRef[IO]
-    .of(State(current = CurrentCounter.Paused, stored = countdownFrom))
+    .of(State(current = CurrentCounter.Paused, stored = countdownFrom, initial = countdownFrom))
     .toResource
     .flatMap { state =>
       val total = state.map(_.total)
       val paused = state.map(_.paused)
       val current = state.lens(_.current)
       val finished = state.map(_.finished)
+
+      val ending =
+        state
+          .map(_.ending)
+          .discrete
+          .changes
+          .filter(identity)
+          .foreach(_ => Sounds.playShortSignal)
+          .compile
+          .drain
+          .background
+          .void
 
       val unpause = IO.realTime.flatMap { now =>
         state.update { s =>
@@ -143,6 +168,7 @@ object CountdownComponent {
         updateState,
         notifyFinished,
         unpauseExternal,
+        ending,
       )
     }
 

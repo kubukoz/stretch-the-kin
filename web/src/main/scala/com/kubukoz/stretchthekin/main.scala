@@ -15,6 +15,7 @@ import io.circe.*
 import io.circe.syntax.*
 import monocle.Focus
 import monocle.syntax.all.*
+import org.scalajs.dom.AudioContext
 import util.chaining.*
 
 import scala.concurrent.duration.{span as _, *}
@@ -96,8 +97,8 @@ object App extends IOWebApp {
 
   def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(none[Int]).toResource.flatMap {
     activeIndex =>
-      val allScreens = Step
-        .toScreens(Session.kneeIrEr45minute)
+      val allScreens = Step.toScreens(Session.kneeIrEr45minute)
+
       div(
         SignallingRef[IO].of(false).toResource.flatMap { clicked =>
           button(
