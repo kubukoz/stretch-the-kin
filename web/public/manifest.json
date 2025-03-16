@@ -1,0 +1,9 @@
+{
+  "name": "Stretch the kin",
+  "short_name": "STK",
+  "description": "A simple training app for my personal purposes",
+  "start_url": "./",
+  "background_color": "#ffffff",
+  "theme_color": "#4CAF50",
+  "display": "standalone"
+}
