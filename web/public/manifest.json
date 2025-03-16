@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/web-manifest.json",
   "name": "Stretch the kin",
   "short_name": "STK",
   "description": "A simple training app for my personal purposes",
