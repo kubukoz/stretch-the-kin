@@ -1,3 +1,11 @@
-# calico-template
+# stretch-the-kin
 
-Template for Calico+Vite apps deployed to GitHub Pages.
+Bare-bones, personal workout app for Kinstretch.
+
+## Development
+
+```
+cd web && yarn start
+```
+
+This will start sbt and Vite concurrently.
