@@ -3,10 +3,12 @@ package com.kubukoz.stretchthekin
 import cats.effect.IO
 import scalajs.js
 
+import scala.annotation.nowarn
 import scala.scalajs.js.annotation.JSGlobal
 
 @js.native
 @JSGlobal
+@nowarn("msg=unused")
 class SpeechSynthesisUtterance(message: String) extends js.Object {
   var voice: js.UndefOr[SpeechSynthesisVoice] = js.native
   var pitch: Double = js.native

@@ -3,7 +3,8 @@ import org.typelevel.sbt.gha.JobEnvironment
 import org.typelevel.sbt.gha.PermissionValue
 import org.typelevel.sbt.gha.Permissions
 
-ThisBuild / scalaVersion := "3.6.3"
+// 3.7.0-RC1 isn't ready: https://github.com/scala/scala3/issues/22794
+ThisBuild / scalaVersion := "3.6.4"
 ThisBuild / scalacOptions ++= Seq(
   "-no-indent",
   "-deprecation",

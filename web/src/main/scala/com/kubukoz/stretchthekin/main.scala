@@ -108,9 +108,10 @@ object App extends IOWebApp {
 
   def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(none[Int]).toResource.flatMap {
     activeIndex =>
-      val allScreens = Step.toScreens(Session.kneeIrEr45minute)
+      val allScreens: List[Screen] = Step.toScreens(Session.kneeIrEr45minute)
 
       div(
+        s"screen count: ${StepV2.kneeIrEr45minute.size}, total time: ${StepV2.kneeIrEr45minute.map(_.content.totalTime).combineAll.toMinutes}m",
         SignallingRef[IO].of(false).toResource.flatMap { clicked =>
           button(
             disabled <-- (clicked, activeIndex.map(_ != none)).mapN(_ || _),
