@@ -9,6 +9,7 @@ import cats.kernel.Monoid
 import cats.syntax.all.*
 import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
+import fs2.dom.HtmlDivElement
 import fs2.dom.HtmlElement
 import io.circe.*
 import io.circe.syntax.*
@@ -60,7 +61,8 @@ object Speaker {
 
 object ScreenComponent {
 
-  def renderScreen(s: Screen, isActive: Signal[IO, Boolean], onFinished: IO[Unit]) = {
+  def renderScreen(s: Screen, isActive: Signal[IO, Boolean], onFinished: IO[Unit])
+    : Resource[IO, HtmlElement[IO]] = {
     val fullText =
       s.action + {
         if s.variants.isEmpty then ""
@@ -112,6 +114,7 @@ object App extends IOWebApp {
 
       div(
         s"screen count: ${StepV2.kneeIrEr45minute.size}, total time: ${StepV2.kneeIrEr45minute.map(_.content.totalTime).combineAll.toMinutes}m",
+        StepV2.kneeIrEr45minute.map(ScreenComponentV2.render),
         SignallingRef[IO].of(false).toResource.flatMap { clicked =>
           button(
             disabled <-- (clicked, activeIndex.map(_ != none)).mapN(_ || _),
