@@ -30,7 +30,7 @@ object BlockComponents {
           onFinished = onFinished,
           isActive = Signal.constant(true),
         )
-      case Block.Stacked(blocks) =>
+      case Block.Parallel(blocks) =>
         // All the steps need to be finished before the next one starts
         // so we count them concurrently.
         CountDownLatch[IO](blocks.size).toResource.flatMap { latch =>
@@ -49,7 +49,7 @@ object BlockComponents {
                 }
             )
         }
-      case Block.Pages(pages, counted) =>
+      case Block.Sequential(pages, counted) =>
         SignallingRef[IO].of(0).toResource.flatMap { currentPageIndex =>
           div(
             currentPageIndex.map { i =>

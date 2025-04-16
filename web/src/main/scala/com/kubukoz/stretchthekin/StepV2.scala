@@ -24,8 +24,8 @@ object StepV2 {
 
     def totalTime: FiniteDuration =
       this match {
-        case Pages(pages, _)           => pages.map(_.totalTime).combineAll
-        case Stacked(blocks)           => blocks.map(_.totalTime).combineAll
+        case Sequential(pages, _)      => pages.map(_.totalTime).combineAll
+        case Parallel(blocks)          => blocks.map(_.totalTime).combineAll
         case Text(_, _)                => 0.seconds
         case Timer(initialDuration, _) => initialDuration
       }
@@ -36,24 +36,24 @@ object StepV2 {
     )
 
     // only one visible at a time. if counted, shows +/- buttons
-    case Pages(pages: List[Block], counted: Boolean)
+    case Sequential(pages: List[Block], counted: Boolean)
     // all visible at once
-    case Stacked(blocks: List[Block])
+    case Parallel(blocks: List[Block])
     // just a text node of some sort
     case Text(text: String, tag: "h2")
   }
 
   object Block {
 
-    def subheadingTimed(text: String, time: FiniteDuration): Block = Stacked(
+    def subheadingTimed(text: String, time: FiniteDuration): Block = Parallel(
       List(
         Text(text, "h2"),
         Timer(time, None),
       )
     )
 
-    def pages(pages: Block*): Pages = Pages(pages.toList, counted = false)
-    extension (pages: Pages) def withCounting: Pages = pages.copy(counted = true)
+    def pages(pages: Block*): Sequential = Sequential(pages.toList, counted = false)
+    extension (pages: Sequential) def withCounting: Sequential = pages.copy(counted = true)
 
     def byReps(n: Int)(blockForRep: Int => Block): Block =
       pages(
