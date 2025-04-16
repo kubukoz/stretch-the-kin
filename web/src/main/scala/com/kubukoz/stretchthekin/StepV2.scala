@@ -129,7 +129,7 @@ object StepV2 {
     title = "Capsular CARs",
     content = Block.cars(
       n = n,
-      timePerRep = 4.seconds,
+      timePerRep = 3.seconds,
     ),
   ).matrix(leftRight)
 
