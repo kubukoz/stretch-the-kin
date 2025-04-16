@@ -56,6 +56,7 @@ object CountdownComponent {
     refreshRate: FiniteDuration,
     onFinished: IO[Unit],
     isActive: Signal[IO, Boolean],
+    shouldPlayToneWhenEnding: Boolean,
   ): Resource[IO, HtmlElement[IO]] = isActive
     .get
     .flatMap { active =>
@@ -81,11 +82,11 @@ object CountdownComponent {
 
       val playToneWhenEnding =
         state
-          .map(_.ending)
+          .map(_.ending && shouldPlayToneWhenEnding)
           .discrete
           .changes
           .filter(identity)
-          .foreach(_ => Sounds.playShortSignal.surround(IO.sleep(500.millis)))
+          .foreach(_ => Sounds.playEnding.surround(IO.sleep(200.millis)))
           .compile
           .drain
           .background

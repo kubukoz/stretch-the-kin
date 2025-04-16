@@ -1,6 +1,7 @@
 package com.kubukoz.stretchthekin
 
 import cats.syntax.all.*
+import com.kubukoz.stretchthekin.Sounds.play
 import io.circe.*
 
 import scala.concurrent.duration.*
@@ -32,7 +33,7 @@ object StepV2 {
 
     case Timer(
       initialDuration: FiniteDuration,
-      decrementBy: Option[FiniteDuration],
+      playToneWhenEnding: Boolean,
     )
 
     // only one visible at a time. if counted, shows +/- buttons
@@ -45,12 +46,13 @@ object StepV2 {
 
   object Block {
 
-    def subheadingTimed(text: String, time: FiniteDuration): Block = Parallel(
-      List(
-        Text(text, "h2"),
-        Timer(time, None),
+    def subheadingTimed(text: String, time: FiniteDuration, playToneWhenEnding: Boolean): Block =
+      Parallel(
+        List(
+          Text(text, "h2"),
+          Timer(time, playToneWhenEnding),
+        )
       )
-    )
 
     def pages(pages: Block*): Sequential = Sequential(pages.toList, counted = false)
     extension (pages: Sequential) def withCounting: Sequential = pages.copy(counted = true)
@@ -70,18 +72,19 @@ object StepV2 {
         val isLast = number == n
 
         if isLast then pages(
-          subheadingTimed("Lift up and hold", repTime),
-          subheadingTimed("HOLD", finalHoldTime),
-          subheadingTimed("Slowly release", finalReleaseTime),
+          subheadingTimed("Lift up and hold", repTime, playToneWhenEnding = true),
+          subheadingTimed("HOLD", finalHoldTime, playToneWhenEnding = true),
+          subheadingTimed("Slowly release", finalReleaseTime, playToneWhenEnding = true),
         )
         else
           pages(
-            subheadingTimed("Lift up", repTime),
-            subheadingTimed("Lift down", repTime),
+            subheadingTimed("Lift up", repTime, playToneWhenEnding = false),
+            subheadingTimed("Lift down", repTime, playToneWhenEnding = false),
           )
       }
 
-    def cars(n: Int, timePerRep: FiniteDuration): Block = byReps(n)(_ => Timer(timePerRep, None))
+    def cars(n: Int, timePerRep: FiniteDuration): Block =
+      byReps(n)(_ => Timer(timePerRep, playToneWhenEnding = false))
   }
 
   def liftoffs(n: Int): StepV2 = StepV2(
@@ -133,7 +136,7 @@ object StepV2 {
 
   def simpleTimed(text: String, subtext: String, time: FiniteDuration): StepV2 = StepV2(
     title = text,
-    content = Block.subheadingTimed(subtext, time),
+    content = Block.subheadingTimed(subtext, time, playToneWhenEnding = true),
   )
 
   def combineSteps(steps: (StepV2 | List[StepV2])*): List[StepV2] = steps.toList.flatMap {
@@ -165,7 +168,11 @@ object StepV2 {
 
     // PAILS/RAILS
     combineSteps(
-      simpleTimed("Get into position", "90-90, IR=back, ER=front", 30.seconds),
+      simpleTimed(
+        "Get into position",
+        "90 90, internal in the back, external in the front",
+        30.seconds,
+      ),
       simpleTimed("Active stretch", "Find your end range position", 20.seconds),
       simpleTimed("Passive stretch", "Pull yourself to 10% outside your active ROM", 10.seconds),
       simpleTimed("Passive stretch", "Relax", 2.minutes),

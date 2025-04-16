@@ -2,11 +2,27 @@ package com.kubukoz.stretchthekin
 
 import cats.effect.IO
 import cats.effect.kernel.Resource
+import cats.syntax.all.*
 import org.scalajs.dom.AudioContext
+
+import scala.concurrent.duration.*
 
 object Sounds {
 
-  def playShortSignal: Resource[IO, Unit] = Resource
+  def playNormal: Resource[IO, Unit] = play(semitones = 0)
+
+  def playEnding: Resource[IO, Unit] = play(semitones = 7)
+
+  def playFinished = List(
+    play(0) -> 200.millis,
+    play(4) -> 200.millis,
+    play(7) -> 200.millis,
+    play(12) -> 400.millis,
+  ).traverse_ { (action, duration) =>
+    action.surround(IO.sleep(duration))
+  }
+
+  def play(semitones: Int) = Resource
     .make(IO(new AudioContext())) { audioCtx =>
       IO.fromPromise(IO(audioCtx.close()))
     }
@@ -20,7 +36,7 @@ object Sounds {
         osc.connect(mainGainNode)
         osc.`type` = "sine"
 
-        osc.frequency.value = 440 * Math.pow(2, 7 / 12.0)
+        osc.frequency.value = 440 * Math.pow(2, semitones / 12.0)
         osc.start()
       }
     }
