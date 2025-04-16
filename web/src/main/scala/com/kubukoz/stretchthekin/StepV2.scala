@@ -1,7 +1,6 @@
 package com.kubukoz.stretchthekin
 
 import cats.syntax.all.*
-import com.kubukoz.stretchthekin.Sounds.play
 import io.circe.*
 
 import scala.concurrent.duration.*

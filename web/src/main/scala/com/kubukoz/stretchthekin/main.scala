@@ -5,6 +5,7 @@ import calico.html.io.*
 import calico.html.io.given
 import cats.derived.*
 import cats.effect.IO
+import cats.effect.kernel.Deferred
 import cats.effect.kernel.Resource
 import cats.effect.std.Queue
 import cats.kernel.Eq
@@ -36,13 +37,13 @@ extension [A](sigref: SignallingRef[IO, A]) {
 given Encoder[FiniteDuration] = _.toString.asJson
 
 trait Speaker {
-  // todo: make this a resource so that the caller can cancel, that way queueing is solved.
+  // canceled speeches get unscheduled but not interrupted
   def speak(text: String): IO[Unit]
 }
 
 object Speaker {
 
-  def queued: Resource[IO, Speaker] = Queue.unbounded[IO, String].toResource.flatMap { q =>
+  def queued: Resource[IO, Speaker] = Queue.unbounded[IO, IO[Unit]].toResource.flatMap { q =>
     def realSpeak(text: String): IO[Unit] = SpeechSynthesisIO
       .getVoices
       .flatMap { voices =>
@@ -59,15 +60,24 @@ object Speaker {
 
     val speaker =
       new Speaker {
-        def speak(text: String): IO[Unit] =
-          IO.println("scheduling text: " + text) *>
-            q.offer(text)
+        def speak(text: String): IO[Unit] = (IO.ref(false), IO.deferred[Unit]).flatMapN {
+          (canceled, completed) =>
+            q.offer(
+              canceled
+                .get
+                .ifM(
+                  ifTrue = IO.println(s"skipping canceled speech: $text") *> IO.unit,
+                  ifFalse = realSpeak(text),
+                ) *> completed.complete(()).void
+            ) *>
+              completed.get.onCancel(canceled.set(true))
+        }
       }
 
     fs2
       .Stream
       .fromQueueUnterminated(q)
-      .foreach(realSpeak)
+      .foreach(identity)
       .compile
       .drain
       .background
