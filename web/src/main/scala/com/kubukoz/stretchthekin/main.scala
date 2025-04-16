@@ -3,8 +3,10 @@ package com.kubukoz.stretchthekin
 import calico.IOWebApp
 import calico.html.io.*
 import calico.html.io.given
+import cats.derived.*
 import cats.effect.IO
 import cats.effect.kernel.Resource
+import cats.kernel.Eq
 import cats.kernel.Monoid
 import cats.syntax.all.*
 import fs2.concurrent.Signal
@@ -108,52 +110,52 @@ object ScreenComponent {
 
 object App extends IOWebApp {
 
-  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO].of(none[Int]).toResource.flatMap {
-    activeIndex =>
-      val allScreens: List[Screen] = Step.toScreens(Session.kneeIrEr45minute)
+  enum AppState derives Eq {
+    case Unstarted
+    case Active(i: Int)
+    case Finished
+  }
+
+  def render: Resource[IO, HtmlElement[IO]] = SignallingRef[IO]
+    .of(AppState.Unstarted)
+    .toResource
+    .flatMap { appState =>
+      val allSteps = StepV2.kneeIrEr45minute
 
       div(
-        s"screen count: ${StepV2.kneeIrEr45minute.size}, total time: ${StepV2.kneeIrEr45minute.map(_.content.totalTime).combineAll.toMinutes}m",
-        StepV2.kneeIrEr45minute.map(ScreenComponentV2.render),
+        s"screen count: ${allSteps.size}, total time: ${allSteps.totalTime.toMinutes}m",
+        appState.map {
+          case AppState.Unstarted => div("Check voice to start")
+          case AppState.Active(i) =>
+            val remainingStepsIncludingThis = allSteps.drop(i)
+
+            div(
+              s"screen ${i + 1}/${allSteps.size}, remaining time: ${remainingStepsIncludingThis.totalTime.toMinutes}m",
+              ScreenComponentV2.render(
+                remainingStepsIncludingThis.head,
+                onFinished = appState.update {
+                  case AppState.Active(i) if i < allSteps.size - 1 => AppState.Active(i + 1)
+                  case _                                           => AppState.Finished
+                },
+              ),
+            )
+          case AppState.Finished => div("Finished!")
+        },
         SignallingRef[IO].of(false).toResource.flatMap { clicked =>
           button(
-            disabled <-- (clicked, activeIndex.map(_ != none)).mapN(_ || _),
+            disabled <-- (clicked, appState.map(_ =!= AppState.Unstarted)).mapN(_ || _),
             "Check voice",
             onClick {
               clicked.set(true) *>
                 Sounds.playShortSignal.surround {
                   Speaker.speak("Starting the session")
                 } *>
-                activeIndex.set(0.some)
+                appState.set(AppState.Active(0))
             },
           )
         },
-        ul(
-          allScreens
-            .zipWithIndex
-            .map { (s, i) =>
-              val isActive = activeIndex.map(_ === i.some).changes
-              li(
-                ScreenComponent.renderScreen(
-                  s,
-                  onFinished = activeIndex.update {
-                    _.map {
-                      case x if x < allScreens.size => x + 1
-                      case x                        => x
-                    }
-                  },
-                  isActive = isActive,
-                ),
-                styleAttr <-- isActive.map {
-                  case true  => "background-color: lightgreen"
-                  case false => "background-color: #eee"
-                },
-                onClick(activeIndex.set(i.some)),
-              )
-            }
-        ),
       )
-  }
+    }
 
   enum Step derives Encoder.AsObject {
     case Empty

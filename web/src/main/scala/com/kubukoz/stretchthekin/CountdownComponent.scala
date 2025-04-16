@@ -31,6 +31,7 @@ object CountdownComponent {
     current: CurrentCounter,
     stored: FiniteDuration,
     initial: FiniteDuration,
+    activeOnLaunch: Boolean,
   ) {
 
     private val cutoff = 0.seconds
@@ -55,8 +56,19 @@ object CountdownComponent {
     refreshRate: FiniteDuration,
     onFinished: IO[Unit],
     isActive: Signal[IO, Boolean],
-  ): Resource[IO, HtmlElement[IO]] = SignallingRef[IO]
-    .of(State(current = CurrentCounter.Paused, stored = countdownFrom, initial = countdownFrom))
+  ): Resource[IO, HtmlElement[IO]] = isActive
+    .get
+    .flatMap { active =>
+      SignallingRef[IO]
+        .of(
+          State(
+            current = CurrentCounter.Paused,
+            stored = countdownFrom,
+            initial = countdownFrom,
+            activeOnLaunch = active,
+          )
+        )
+    }
     .toResource
     .flatMap { state =>
       val total = state.map(_.total).changes
@@ -138,17 +150,21 @@ object CountdownComponent {
           .drain
           .background
 
-      val unpauseExternal =
-        isActive
-          .discrete
-          .changes
-          .foreach {
-            case true  => unpause
-            case false => reset
-          }
-          .compile
-          .drain
-          .background
+      val unpauseExternal = isActive
+        .getAndDiscreteUpdates
+        .flatMap { (activeNow, activeDiscrete) =>
+          // if the component is active on launch, we need to unpause it before we even render
+          unpause.whenA(activeNow).toResource *>
+            activeDiscrete
+              .changes
+              .foreach {
+                case true  => unpause
+                case false => reset
+              }
+              .compile
+              .drain
+              .background
+        }
 
       updateState *>
         notifyFinished *>

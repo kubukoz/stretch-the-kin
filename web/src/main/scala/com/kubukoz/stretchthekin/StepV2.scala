@@ -104,6 +104,8 @@ object StepV2 {
       steps.map(step => step.addVariants(variants))
     }
 
+    def totalTime: FiniteDuration = steps.map(_.content.totalTime).combineAll
+
   }
 
   extension (step: StepV2) {
