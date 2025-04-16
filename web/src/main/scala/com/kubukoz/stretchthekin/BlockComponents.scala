@@ -74,9 +74,7 @@ object BlockComponents {
           val next = currentPageIndex.flatModify { i =>
             val isLast = i === pages.indices.last
 
-            println(s"next from $i, isLast: $isLast, pages: ${pages.size}")
-
-            if isLast then (0, onFinished)
+            if isLast then (i, onFinished)
             else
               (i + 1, IO.unit)
           }
@@ -89,7 +87,6 @@ object BlockComponents {
               )
             },
             counted match {
-              // todo: also show +- buttons
               case true =>
                 div(
                   s"rep: ",
