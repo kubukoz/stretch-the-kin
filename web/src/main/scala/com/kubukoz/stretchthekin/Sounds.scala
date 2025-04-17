@@ -7,13 +7,28 @@ import org.scalajs.dom.AudioContext
 
 import scala.concurrent.duration.*
 
+opaque type Sounds = AudioContext
+
 object Sounds {
 
-  def playNormal: Resource[IO, Unit] = play(semitones = 0)
+  def make: Resource[IO, Sounds] =
+    Resource
+      // This is actually heavy, and has caused performance problems on mobile
+      .make(IO(new AudioContext())) { audioCtx =>
+        IO.fromPromise(IO(audioCtx.close()))
+      }
 
-  def playEnding: Resource[IO, Unit] = play(semitones = 7)
+  def playNormal(
+    using Sounds
+  ): Resource[IO, Unit] = play(semitones = 0)
 
-  def playFinished = List(
+  def playEnding(
+    using Sounds
+  ): Resource[IO, Unit] = play(semitones = 7)
+
+  def playFinished(
+    using Sounds
+  ) = List(
     play(0) -> 200.millis,
     play(4) -> 200.millis,
     play(7) -> 200.millis,
@@ -22,12 +37,15 @@ object Sounds {
     action.surround(IO.sleep(duration))
   }
 
-  def play(semitones: Int) = Resource
-    .make(IO(new AudioContext())) { audioCtx =>
-      IO.fromPromise(IO(audioCtx.close()))
-    }
-    .evalMap { audioCtx =>
+  def play(
+    semitones: Int
+  )(
+    using Sounds
+  ): Resource[IO, Unit] =
+    Resource.make {
       IO {
+        val audioCtx = summon[Sounds]
+
         val mainGainNode = audioCtx.createGain()
         mainGainNode.gain.value = 0.3
         mainGainNode.connect(audioCtx.destination)
@@ -38,7 +56,10 @@ object Sounds {
 
         osc.frequency.value = 440 * Math.pow(2, semitones / 12.0)
         osc.start()
+        osc
       }
-    }
+    } { osc =>
+      IO(osc.stop())
+    }.void
 
 }

@@ -5,7 +5,6 @@ import calico.html.io.*
 import calico.html.io.given
 import cats.derived.*
 import cats.effect.IO
-import cats.effect.kernel.Deferred
 import cats.effect.kernel.Resource
 import cats.effect.std.Queue
 import cats.kernel.Eq
@@ -106,9 +105,11 @@ object App extends IOWebApp {
         .of(AppState.Unstarted)
         .toResource,
       Speaker.queued,
+      Sounds.make,
     )
-      .flatMapN { (appState, speaker) =>
+      .flatMapN { (appState, speaker, sounds) =>
         given Speaker = speaker
+        given Sounds = sounds
 
         val allScreens = StepV2.kneeIrEr45minute
 

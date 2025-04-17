@@ -57,6 +57,8 @@ object CountdownComponent {
     onFinished: IO[Unit],
     isActive: Signal[IO, Boolean],
     shouldPlayToneWhenEnding: Boolean,
+  )(
+    using Sounds
   ): Resource[IO, HtmlElement[IO]] = isActive
     .get
     .flatMap { active =>

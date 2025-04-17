@@ -19,7 +19,8 @@ object BlockComponents {
     block: Block,
     onFinished: IO[Unit],
   )(
-    using Speaker
+    using Speaker,
+    Sounds,
   ): Resource[IO, HtmlElement[IO]] =
     block match {
       case Block.Text(text, tag) =>
@@ -116,7 +117,8 @@ object ScreenComponentV2 {
     step: StepV2,
     onFinished: IO[Unit],
   )(
-    using Speaker
+    using Speaker,
+    Sounds,
   ): Resource[IO, HtmlElement[IO]] = {
     val speechText = (step.title +: step.variants).mkString(", ")
 
