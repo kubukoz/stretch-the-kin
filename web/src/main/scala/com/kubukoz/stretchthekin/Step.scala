@@ -6,15 +6,15 @@ import io.circe.*
 import scala.concurrent.duration.*
 import scala.util.NotGiven
 
-case class StepV2(
+case class Step(
   title: String,
-  content: StepV2.Block,
+  content: Step.Block,
   variants: List[String] = Nil,
 ) derives Encoder.AsObject {
-  def addVariants(variants: List[String]): StepV2 = this.copy(variants = this.variants ++ variants)
+  def addVariants(variants: List[String]): Step = this.copy(variants = this.variants ++ variants)
 }
 
-object StepV2 {
+object Step {
 
   given [T <: String](
     using NotGiven[T =:= String]
@@ -86,7 +86,7 @@ object StepV2 {
       byReps(n)(_ => Timer(timePerRep, playToneWhenEnding = false))
   }
 
-  def liftoffs(n: Int): StepV2 = StepV2(
+  def liftoffs(n: Int): Step = Step(
     title = "Liftoffs",
     content = Block.liftoffs(
       n = n,
@@ -100,9 +100,9 @@ object StepV2 {
   val clockwiseCounterclockwise = List("Clockwise", "Counterclockwise")
   val internalExternal = List("IR", "ER")
 
-  extension (steps: List[StepV2]) {
+  extension (steps: List[Step]) {
 
-    def matrix(axes: List[String]*): List[StepV2] = axes.toList.sequence.flatMap { variants =>
+    def matrix(axes: List[String]*): List[Step] = axes.toList.sequence.flatMap { variants =>
       steps.map(step => step.addVariants(variants))
     }
 
@@ -110,11 +110,11 @@ object StepV2 {
 
   }
 
-  extension (step: StepV2) {
-    def matrix(axes: List[String]*): List[StepV2] = List(step).matrix(axes*)
+  extension (step: Step) {
+    def matrix(axes: List[String]*): List[Step] = List(step).matrix(axes*)
   }
 
-  def cars(n: Int): List[StepV2] = StepV2(
+  def cars(n: Int): List[Step] = Step(
     title = "CARs",
     content = Block.cars(
       n = n,
@@ -125,7 +125,7 @@ object StepV2 {
     clockwiseCounterclockwise,
   )
 
-  def capsularCars(n: Int): List[StepV2] = StepV2(
+  def capsularCars(n: Int): List[Step] = Step(
     title = "Capsular CARs",
     content = Block.cars(
       n = n,
@@ -133,23 +133,23 @@ object StepV2 {
     ),
   ).matrix(leftRight)
 
-  def simpleTimed(text: String, subtext: String, time: FiniteDuration): StepV2 = StepV2(
+  def simpleTimed(text: String, subtext: String, time: FiniteDuration): Step = Step(
     title = text,
     content = Block.subheadingTimed(subtext, time, playToneWhenEnding = true),
   )
 
-  def combineSteps(steps: (StepV2 | List[StepV2])*): List[StepV2] = steps.toList.flatMap {
-    case s: StepV2       => List(s)
-    case l: List[StepV2] => l
+  def combineSteps(steps: (Step | List[Step])*): List[Step] = steps.toList.flatMap {
+    case s: Step       => List(s)
+    case l: List[Step] => l
   }
 
-  def pailsRailsRound(): List[StepV2] = List(
+  def pailsRailsRound(): List[Step] = List(
     simpleTimed("PAILs", "Begin slowly, hold", 20.seconds),
     simpleTimed("RAILS", "Switch instantly, hold", 15.seconds),
     simpleTimed("Slow release", "Relax", 10.seconds),
   )
 
-  def pailsRailsRounds(n: Int): List[StepV2] = (1 to n).toList.flatMap { roundNumber =>
+  def pailsRailsRounds(n: Int): List[Step] = (1 to n).toList.flatMap { roundNumber =>
     val isLast = roundNumber == n
 
     val passiveStretch = simpleTimed("Passive stretch", "relax", 45.seconds)

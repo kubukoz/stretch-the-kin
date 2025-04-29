@@ -111,7 +111,7 @@ object App extends IOWebApp {
         given Speaker = speaker
         given Sounds = sounds
 
-        val allScreens = StepV2.kneeIrEr45minute
+        val allScreens = Step.kneeIrEr45minute
 
         div(
           s"screen count: ${allScreens.size}, total time: ${allScreens.totalTime.toMinutes}m",

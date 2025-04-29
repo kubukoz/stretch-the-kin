@@ -6,7 +6,7 @@ import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.effect.std.CountDownLatch
 import cats.syntax.all.*
-import com.kubukoz.stretchthekin.StepV2.Block
+import com.kubukoz.stretchthekin.Step.Block
 import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
 import fs2.dom.HtmlElement
@@ -114,7 +114,7 @@ object BlockComponents {
 object ScreenComponentV2 {
 
   def render(
-    step: StepV2,
+    step: Step,
     onFinished: IO[Unit],
   )(
     using Speaker,
