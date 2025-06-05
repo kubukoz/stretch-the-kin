@@ -3,8 +3,7 @@ import org.typelevel.sbt.gha.JobEnvironment
 import org.typelevel.sbt.gha.PermissionValue
 import org.typelevel.sbt.gha.Permissions
 
-// 3.7.0-RC1 isn't ready: https://github.com/scala/scala3/issues/22794
-ThisBuild / scalaVersion := "3.6.4"
+ThisBuild / scalaVersion := "3.7.1"
 ThisBuild / scalacOptions ++= Seq(
   "-no-indent",
   "-deprecation",
@@ -14,21 +13,11 @@ ThisBuild / scalacOptions ++= Seq(
 )
 
 ThisBuild / githubWorkflowPermissions := Some {
-  // https://github.com/typelevel/sbt-typelevel/pull/794
-  Permissions.Specify(
-    pages = PermissionValue.Write,
-    idToken = PermissionValue.Write,
-    actions = PermissionValue.None,
-    checks = PermissionValue.None,
-    contents = PermissionValue.Read,
-    deployments = PermissionValue.None,
-    issues = PermissionValue.None,
-    packages = PermissionValue.None,
-    pullRequests = PermissionValue.None,
-    repositoryProjects = PermissionValue.None,
-    securityEvents = PermissionValue.None,
-    statuses = PermissionValue.None,
-  )
+  Permissions
+    .Specify
+    .defaultRestrictive
+    .withPages(PermissionValue.Write)
+    .withIdToken(PermissionValue.Write)
 }
 
 ThisBuild / githubWorkflowPublish := Seq(
@@ -80,9 +69,9 @@ val web = project
     },
     libraryDependencies ++= Seq(
       "com.armanbilge" %%% "calico" % "0.2.3",
-      "org.typelevel" %%% "kittens" % "3.4.0",
+      "org.typelevel" %%% "kittens" % "3.5.0",
       "org.typelevel" %%% "cats-core" % "2.13.0",
-      "io.circe" %%% "circe-core" % "0.14.10",
+      "io.circe" %%% "circe-core" % "0.14.13",
     ),
   )
 
