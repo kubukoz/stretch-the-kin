@@ -59,6 +59,8 @@ ThisBuild / githubWorkflowGeneratedCI ~= {
   }
 }
 
+ThisBuild / mergifyStewardConfig ~= (_.map(_.withMergeMinors(true)))
+
 val web = project
   .enablePlugins(ScalaJSPlugin)
   .settings(
