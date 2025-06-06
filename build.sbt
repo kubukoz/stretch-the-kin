@@ -53,17 +53,15 @@ ThisBuild / githubWorkflowPublish := List.concat(
 ThisBuild / githubWorkflowGeneratedCI ~= {
   _.map {
     case job if job.id == "publish" =>
-      job
-        .withEnvironment(
-          Some(
-            JobEnvironment(
-              "github-pages",
-              // https://github.com/typelevel/sbt-typelevel/issues/802
-              Some(new URL("https://kubukoz.github.io/stretch-the-kin")),
-            )
+      job.withEnvironment(
+        Some(
+          JobEnvironment(
+            "github-pages",
+            // https://github.com/typelevel/sbt-typelevel/issues/802
+            Some(new URL("https://kubukoz.github.io/stretch-the-kin")),
           )
         )
-        .withNeeds(Nil)
+      )
     case job => job
   }
 }
