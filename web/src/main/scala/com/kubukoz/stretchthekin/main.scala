@@ -53,52 +53,75 @@ object App extends IOWebApp {
 
         val allScreens = Step.kneeIrEr45minute
 
-        div(
-          s"screen count: ${allScreens.size}, total time: ${allScreens.totalTime.toMinutes}m",
-          appState.map {
-            case AppState.Unstarted => div("Check voice to start")
-            case AppState.Active(i) =>
-              val remainingStepsIncludingThis = allScreens.drop(i)
+        val appScreen = appState.map {
+          case AppState.Unstarted => div("Check voice to start")
+          case AppState.Active(i) =>
+            val remainingStepsIncludingThis = allScreens.drop(i)
 
-              div(
-                s"screen ${i + 1}/${allScreens.size}, remaining time: ${remainingStepsIncludingThis.totalTime.toMinutes}m",
-                ScreenComponentV2.render(
-                  remainingStepsIncludingThis.head,
-                  onFinished = appState.update {
-                    case AppState.Active(i) if i < allScreens.size - 1 => AppState.Active(i + 1)
-                    case _                                             => AppState.Finished
-                  },
-                ),
-              )
-            case AppState.Finished => Sounds.playFinished.background *> div("Finished!")
-          },
-          SignallingRef[IO].of(false).toResource.flatMap { clicked =>
-            button(
-              disabled <-- (clicked, appState.map(_ =!= AppState.Unstarted)).mapN(_ || _),
-              "Check voice",
-              onClick {
-                clicked.set(true) *>
-                  Sounds.playEnding.surround {
-                    Speaker.speak("Starting the session")
-                  } *>
-                  appState.set(AppState.Active(0))
-              },
+            div(
+              s"screen ${i + 1}/${allScreens.size}, remaining time: ${remainingStepsIncludingThis.totalTime.toMinutes}m",
+              ScreenComponentV2.render(
+                remainingStepsIncludingThis.head,
+                onFinished = appState.update {
+                  case AppState.Active(i) if i < allScreens.size - 1 => AppState.Active(i + 1)
+                  case _                                             => AppState.Finished
+                },
+              ),
             )
-          },
-          ul(
-            allScreens.zipWithIndex.map { (screen, i) =>
-              li(
-                a(
-                  href := "#",
-                  s"$i: ${screen.title} (${screen.content.totalTime.toSeconds}s)",
-                  onClick(appState.set(AppState.Active(i))),
-                ),
-                detailsTag(
-                  summaryTag("Details"),
-                  pre(code(screen.content.asJson.spaces2)),
-                ),
-              )
-            }
+          case AppState.Finished => Sounds.playFinished.background *> div("Finished!")
+        }
+
+        val startButton = SignallingRef[IO].of(false).toResource.flatMap { clicked =>
+          button(
+            disabled <-- (clicked, appState.map(_ =!= AppState.Unstarted)).mapN(_ || _),
+            "Check voice",
+            onClick {
+              clicked.set(true) *>
+                Sounds.playEnding.surround {
+                  Speaker.speak("Starting the session")
+                } *>
+                appState.set(AppState.Active(0))
+            },
+          )
+        }
+
+        def isActiveScreen(i: Int) = appState.map {
+          case AppState.Active(activeIndex) if activeIndex == i => true
+          case _                                                => false
+        }
+
+        div(
+          styleAttr := "display: grid; gap: 2em",
+          div(
+            s"screen count: ${allScreens.size}, total time: ${allScreens.totalTime.toMinutes}m",
+            appScreen,
+            startButton,
+          ),
+          div(
+            "Table of contents:",
+            ul(
+              allScreens.zipWithIndex.map { (screen, i) =>
+                li(
+                  styleAttr <-- isActiveScreen(i).map {
+                    case true  => "font-weight: bold"
+                    case false => ""
+                  },
+                  a(
+                    href := "#",
+                    s"$i: ${screen.fullTitle} (${screen.content.totalTime.toSeconds}s)",
+                    isActiveScreen(i).map {
+                      case true  => " (active)"
+                      case false => ""
+                    },
+                    onClick(appState.set(AppState.Active(i))),
+                  ),
+                  detailsTag(
+                    summaryTag("Details"),
+                    pre(code(screen.content.asJson.spaces2)),
+                  ),
+                )
+              }
+            ),
           ),
         )
       }

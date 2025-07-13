@@ -124,11 +124,7 @@ object ScreenComponentV2 {
 
     Speaker.speak(speechText).background *>
       div(
-        h1(
-          step.title + (if step.variants.nonEmpty then " | " + step.variants.mkString(" | ")
-                        else
-                          "")
-        ),
+        h1(step.fullTitle),
         BlockComponents.render(step.content, onFinished),
         styleAttr := "margin: 20px;",
       )

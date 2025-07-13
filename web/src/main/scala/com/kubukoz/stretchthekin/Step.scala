@@ -12,6 +12,13 @@ case class Step(
   variants: List[String] = Nil,
 ) derives Encoder.AsObject {
   def addVariants(variants: List[String]): Step = this.copy(variants = this.variants ++ variants)
+
+  def fullTitle: String =
+    this.title +
+      (if this.variants.nonEmpty then " | " + this.variants.mkString(" | ")
+       else
+         "")
+
 }
 
 object Step {
