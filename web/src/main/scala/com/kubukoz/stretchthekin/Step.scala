@@ -105,7 +105,7 @@ object Step {
 
   val leftRight = List("Left side", "Right side")
   val clockwiseCounterclockwise = List("CW", "CCW")
-  val internalExternal = List("IR", "ER")
+  val internalExternal = List("IR", "E R")
 
   extension (steps: List[Step]) {
 
