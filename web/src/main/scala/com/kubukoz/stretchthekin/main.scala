@@ -53,27 +53,10 @@ object App extends IOWebApp {
 
         val allScreens = Step.kneeIrEr45minute
 
-        val appScreen = appState.map {
-          case AppState.Unstarted => div("Check voice to start")
-          case AppState.Active(i) =>
-            val remainingStepsIncludingThis = allScreens.drop(i)
-
-            div(
-              s"screen ${i + 1}/${allScreens.size}, remaining time: ${remainingStepsIncludingThis.totalTime.toMinutes}m",
-              ScreenComponentV2.render(
-                remainingStepsIncludingThis.head,
-                onFinished = appState.update {
-                  case AppState.Active(i) if i < allScreens.size - 1 => AppState.Active(i + 1)
-                  case _                                             => AppState.Finished
-                },
-              ),
-            )
-          case AppState.Finished => Sounds.playFinished.background *> div("Finished!")
-        }
-
         val startButton = SignallingRef[IO].of(false).toResource.flatMap { clicked =>
+          val disabledSig = (clicked, appState.map(_ =!= AppState.Unstarted)).mapN(_ || _)
           button(
-            disabled <-- (clicked, appState.map(_ =!= AppState.Unstarted)).mapN(_ || _),
+            disabled <-- disabledSig,
             "Check voice",
             onClick {
               clicked.set(true) *>
@@ -85,18 +68,66 @@ object App extends IOWebApp {
           )
         }
 
+        val appScreen = appState.map {
+          case AppState.Unstarted =>
+            div(
+              div("Check voice to start"),
+              startButton,
+            )
+          case AppState.Active(i) =>
+            val remainingStepsIncludingThis = allScreens.drop(i)
+
+            val nextStep =
+              remainingStepsIncludingThis.tail.headOption match {
+                case Some(next) =>
+                  p(
+                    a(
+                      href := "#",
+                      s"Next step: ${next.fullTitle}",
+                      onClick(appState.update {
+                        case AppState.Active(_) => AppState.Active(i + 1)
+                        case _                  => AppState.Finished
+                      }),
+                    ),
+                    s" (${next.content.totalTime.toSeconds}s)",
+                  )
+                case None => p("This is the final step!")
+              }
+
+            div(
+              s"screen ${i + 1}/${allScreens.size}, remaining time: ${remainingStepsIncludingThis.totalTime.toMinutes}m",
+              progressTag(
+                value := i.show,
+                maxAttr := allScreens.size.show,
+              ),
+              ScreenComponentV2.render(
+                remainingStepsIncludingThis.head,
+                onFinished = appState.update {
+                  case AppState.Active(i) if i < allScreens.size - 1 => AppState.Active(i + 1)
+                  case _                                             => AppState.Finished
+                },
+              ),
+              nextStep,
+            )
+          case AppState.Finished =>
+            {
+              speaker.speak("Session finished!") *>
+                Sounds.playFinished
+            }.background *>
+              div("Finished! 🎉")
+        }
+
         def isActiveScreen(i: Int) = appState.map {
           case AppState.Active(activeIndex) if activeIndex == i => true
           case _                                                => false
         }
 
         div(
-          styleAttr := "display: grid; gap: 2em",
+          styleAttr := "display: grid; gap: 1em",
           div(
-            s"screen count: ${allScreens.size}, total time: ${allScreens.totalTime.toMinutes}m",
-            appScreen,
-            startButton,
+            s"Screen count: ${allScreens.size}, total time: ${allScreens.totalTime.toMinutes}m"
           ),
+          appScreen,
           div(
             "Table of contents:",
             ul(
