@@ -117,7 +117,7 @@ object CountdownComponent {
                 current = CurrentCounter.Running(now, now)
               )
 
-            case r: CurrentCounter.Running =>
+            case _: CurrentCounter.Running =>
               s.copy(
                 current = CurrentCounter.Paused,
                 stored = s.total,

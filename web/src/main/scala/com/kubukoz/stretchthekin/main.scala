@@ -10,7 +10,6 @@ import cats.kernel.Eq
 import cats.syntax.all.*
 import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
-import fs2.dom.HtmlDivElement
 import fs2.dom.HtmlElement
 import io.circe.*
 import io.circe.syntax.*
