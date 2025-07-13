@@ -175,6 +175,10 @@ object CountdownComponent {
         playToneWhenEnding *>
         div(
           p(
+            progressTag(
+              value <-- total.map(countdownFrom - _).map(_.toMillis.toString),
+              maxAttr := countdownFrom.toMillis.toString,
+            ),
             "Remaining: ",
             total.map { e =>
               s"${e.toSeconds}.${(e.toMillis % 1000) / 10}s"

@@ -104,7 +104,7 @@ object Step {
   )
 
   val leftRight = List("Left side", "Right side")
-  val clockwiseCounterclockwise = List("Clockwise", "Counterclockwise")
+  val clockwiseCounterclockwise = List("CW", "CCW")
   val internalExternal = List("IR", "ER")
 
   extension (steps: List[Step]) {
@@ -150,9 +150,9 @@ object Step {
     case l: List[Step] => l
   }
 
-  def pailsRailsRound(): List[Step] = List(
-    simpleTimed("PAILs", "Begin slowly, hold", 20.seconds),
-    simpleTimed("RAILS", "Switch instantly, hold", 15.seconds),
+  def pailsRailsRound(roundNumber: Int, roundsTotal: Int): List[Step] = List(
+    simpleTimed(s"PAILs $roundNumber/$roundsTotal", "Begin slowly, hold", 20.seconds),
+    simpleTimed(s"RAILS $roundNumber/$roundsTotal", "Switch instantly, hold", 15.seconds),
     simpleTimed("Slow release", "Relax", 10.seconds),
   )
 
@@ -161,9 +161,9 @@ object Step {
 
     val passiveStretch = simpleTimed("Passive stretch", "relax", 45.seconds)
 
-    if isLast then pailsRailsRound()
-    else
-      pailsRailsRound() :+ passiveStretch
+    val base = pailsRailsRound(roundNumber = roundNumber, roundsTotal = n)
+
+    base ++ Option.unless(isLast)(passiveStretch)
   }
 
   val kneeIrEr45minute = combineSteps(
@@ -186,7 +186,7 @@ object Step {
       simpleTimed("Passive stretch", "Relax", 30.seconds),
       simpleTimed("Back out for liftoffs", "10%", 10.seconds),
       liftoffs(10),
-    ).matrix(leftRight, internalExternal),
+    ).matrix(internalExternal, leftRight),
 
     // cooldown
     cars(6),
