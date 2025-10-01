@@ -80,7 +80,7 @@ val web = project
       "com.armanbilge" %%% "calico" % "0.2.3",
       "org.typelevel" %%% "kittens" % "3.5.0",
       "org.typelevel" %%% "cats-core" % "2.13.0",
-      "io.circe" %%% "circe-core" % "0.14.14",
+      "io.circe" %%% "circe-core" % "0.14.15",
     ),
   )
 
